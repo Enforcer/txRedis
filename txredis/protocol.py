@@ -54,8 +54,7 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
     BULK = "$"
     MULTI_BULK = "*"
 
-    def __init__(self, db=None, password=None, charset='utf8',
-                 errors='strict'):
+    def __init__(self, db=None, password=None, charset='utf8', errors='strict'):
         self.charset = charset
         self.db = db if db is not None else 0
         self.password = password
@@ -278,16 +277,17 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
 
     def _encode(self, s):
         """Encode a value for sending to the server."""
-        if isinstance(s, str):
-            return s
-        if isinstance(s, unicode):
-            try:
-                return s.encode(self.charset, self.errors)
-            except UnicodeEncodeError, e:
-                raise exceptions.InvalidData(
-                    "Error encoding unicode value '%s': %s" % (
-                        s.encode(self.charset, 'replace'), e))
-        return str(s)
+        #if isinstance(s, str):
+        #    return s
+        # if isinstance(s, unicode):
+        #     try:
+        #         return s.encode(self.charset, self.errors)
+        #     except UnicodeEncodeError as e:
+        #         raise exceptions.InvalidData(
+        #             "Error encoding unicode value '%s': %s" % (
+        #                 s.encode(self.charset, 'replace'), e))
+        s = str(s)
+        return str.encode(s)
 
     def _send(self, *args):
         """Encode and send a request
@@ -298,8 +298,8 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
         cmds = []
         for i in args:
             v = self._encode(i)
-            cmds.append('$%s\r\n%s\r\n' % (len(v), v))
-        cmd = '*%s\r\n' % len(args) + ''.join(cmds)
+            cmds.append(b'$%s\r\n%s\r\n' % (bytes(len(v)), v))
+        cmd = b'*%s\r\n' % bytes(len(args)) + b''.join(cmds)
         self.transport.write(cmd)
 
     def send(self, command, *args):
