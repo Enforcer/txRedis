@@ -1482,22 +1482,22 @@ class RedisSubscriber(RedisBase):
         Overrides RedisBase.handleCompleteMultiBulkData to intercept published
         message events.
         """
-        if reply[0] == u"message":
+        if reply[0] == b'message':
             channel, message = reply[1:]
             self.messageReceived(channel, message)
-        elif reply[0] == u"pmessage":
+        elif reply[0] == b'pmessage':
             pattern, channel, message = reply[1:]
             self.messageReceived(channel, message)
-        elif reply[0] == u"subscribe":
+        elif reply[0] == b'subscribe':
             channel, numSubscribed = reply[1:]
             self.channelSubscribed(channel, numSubscribed)
-        elif reply[0] == u"unsubscribe":
+        elif reply[0] == b'unsubscribe':
             channel, numSubscribed = reply[1:]
             self.channelUnsubscribed(channel, numSubscribed)
-        elif reply[0] == u"psubscribe":
+        elif reply[0] == b'psubscribe':
             channelPattern, numSubscribed = reply[1:]
             self.channelPatternSubscribed(channelPattern, numSubscribed)
-        elif reply[0] == u"punsubscribe":
+        elif reply[0] == b'punsubscribe':
             channelPattern, numSubscribed = reply[1:]
             self.channelPatternUnsubscribed(channelPattern, numSubscribed)
         else:

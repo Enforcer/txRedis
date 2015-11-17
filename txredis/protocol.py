@@ -37,29 +37,13 @@ Redis google code project: http://code.google.com/p/redis/
 Command doc strings taken from the CommandReference wiki page.
 
 """
-import sys
 from collections import deque
 
 from twisted.internet import defer, protocol
 from twisted.protocols import policies
 
 from txredis import exceptions
-
-
-if sys.version_info[0] < 3:
-    def b(x):
-        return x
-    from itertools import imap
-    long = long
-    basestring = basestring
-    unicode = unicode
-else:
-    def b(x):
-        return x.encode('latin-1') if not isinstance(x, bytes) else x
-    imap = map
-    long = int
-    basestring = str
-    unicode = str
+from txredis._compat import b, imap, long, basestring, unicode
 
 
 SYM_STAR = b('*')
@@ -89,11 +73,11 @@ class Token(object):
 class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
     """The main Redis client."""
 
-    ERROR = "-"
-    SINGLE_LINE = "+"
-    INTEGER = ":"
-    BULK = "$"
-    MULTI_BULK = "*"
+    ERROR = b('-')
+    SINGLE_LINE = b('+')
+    INTEGER = b(':')
+    BULK = b('$')
+    MULTI_BULK = b('*')
 
     def __init__(self, db=None, password=None, charset='utf8', errors='strict'):
         self.charset = charset
@@ -139,8 +123,8 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
                 continue
 
             # first byte indicates reply type
-            reply_type = line[0]
-            reply_data = line[1:]
+            reply_type = line[:1]
+            reply_data = line[1:].decode('utf-8')
 
             # Error message (-)
             if reply_type == self.ERROR:
