@@ -37,12 +37,53 @@ Redis google code project: http://code.google.com/p/redis/
 Command doc strings taken from the CommandReference wiki page.
 
 """
+import sys
 from collections import deque
 
 from twisted.internet import defer, protocol
 from twisted.protocols import policies
 
 from txredis import exceptions
+
+
+if sys.version_info[0] < 3:
+    def b(x):
+        return x
+    from itertools import imap
+    long = long
+    basestring = basestring
+    unicode = unicode
+else:
+    def b(x):
+        return x.encode('latin-1') if not isinstance(x, bytes) else x
+    imap = map
+    long = int
+    basestring = str
+    unicode = str
+
+
+SYM_STAR = b('*')
+SYM_DOLLAR = b('$')
+SYM_CRLF = b('\r\n')
+SYM_EMPTY = b('')
+
+
+class Token(object):
+    """
+    Literal strings in Redis commands, such as the command names and any
+    hard-coded arguments are wrapped in this class so we know not to apply
+    and encoding rules on them.
+    """
+    def __init__(self, value):
+        if isinstance(value, Token):
+            value = value.value
+        self.value = value
+
+    def __repr__(self):
+        return self.value
+
+    def __str__(self):
+        return self.value
 
 
 class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
@@ -59,7 +100,7 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
         self.db = db if db is not None else 0
         self.password = password
         self.errors = errors
-        self._buffer = ''
+        self._buffer = b('')
         self._bulk_length = None
         self._disconnected = False
         # Format of _multi_bulk_stack elements is:
@@ -89,11 +130,11 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
                 continue
 
             # wait until we have a line
-            if '\r\n' not in self._buffer:
+            if SYM_CRLF not in self._buffer:
                 return
 
             # grab a line
-            line, self._buffer = self._buffer.split('\r\n', 1)
+            line, self._buffer = self._buffer.split(SYM_CRLF, 1)
             if len(line) == 0:
                 continue
 
@@ -275,19 +316,56 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
         self._request_queue.append(d)
         return d
 
-    def _encode(self, s):
-        """Encode a value for sending to the server."""
-        #if isinstance(s, str):
-        #    return s
-        # if isinstance(s, unicode):
-        #     try:
-        #         return s.encode(self.charset, self.errors)
-        #     except UnicodeEncodeError as e:
-        #         raise exceptions.InvalidData(
-        #             "Error encoding unicode value '%s': %s" % (
-        #                 s.encode(self.charset, 'replace'), e))
-        s = str(s)
-        return str.encode(s)
+    def encode(self, value):
+        "Ported from redis-py"
+        "Return a bytestring representation of the value"
+        self.encoding = 'utf-8' # TODO - te dwa byly konfigurowalne
+        self.encoding_errors = 'strict'
+
+        if isinstance(value, Token):
+            return b(value.value)
+        elif isinstance(value, bytes):
+            return value
+        elif isinstance(value, (int, long)):
+            value = b(str(value))
+        elif isinstance(value, float):
+            value = b(repr(value))
+        elif not isinstance(value, basestring):
+            value = unicode(value)
+        if isinstance(value, unicode):
+            value = value.encode(self.encoding, self.encoding_errors)
+        return value
+
+    def _pack(self, *args):
+        output = []
+        # the client might have included 1 or more literal arguments in
+        # the command name, e.g., 'CONFIG GET'. The Redis server expects these
+        # arguments to be sent separately, so split the first argument
+        # manually. All of these arguements get wrapped in the Token class
+        # to prevent them from being encoded.
+        command = args[0]
+        if ' ' in command:
+            args = tuple([Token(s) for s in command.split(' ')]) + args[1:]
+        else:
+            args = (Token(command),) + args[1:]
+
+        buff = SYM_EMPTY.join(
+            (SYM_STAR, b(str(len(args))), SYM_CRLF))
+
+        for arg in imap(self.encode, args):
+            # to avoid large string mallocs, chunk the command into the
+            # output list if we're sending large values
+            if len(buff) > 6000 or len(arg) > 6000:
+                buff = SYM_EMPTY.join(
+                    (buff, SYM_DOLLAR, b(str(len(arg))), SYM_CRLF))
+                output.append(buff)
+                output.append(arg)
+                buff = SYM_CRLF
+            else:
+                buff = SYM_EMPTY.join((buff, SYM_DOLLAR, b(str(len(arg))),
+                                       SYM_CRLF, arg, SYM_CRLF))
+        output.append(buff)
+        return output
 
     def _send(self, *args):
         """Encode and send a request
@@ -295,12 +373,9 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
         Uses the 'unified request protocol' (aka multi-bulk)
 
         """
-        cmds = []
-        for i in args:
-            v = self._encode(i)
-            cmds.append(b'$%s\r\n%s\r\n' % (bytes(len(v)), v))
-        cmd = b'*%s\r\n' % bytes(len(args)) + b''.join(cmds)
-        self.transport.write(cmd)
+        command = self._pack(*args)
+        for part in command:
+            self.transport.write(part)
 
     def send(self, command, *args):
         self._send(command, *args)
