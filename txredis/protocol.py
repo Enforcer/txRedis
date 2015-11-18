@@ -108,7 +108,7 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
                 # we add 2 to _bulk_length to account for \r\n
                 if len(self._buffer) < self._bulk_length + 2:
                     return
-                data = self._buffer[:self._bulk_length]
+                data = self._buffer[:self._bulk_length].decode(self.charset, self.errors)
                 self._buffer = self._buffer[self._bulk_length + 2:]
                 self.bulkDataReceived(data)
                 continue
@@ -124,7 +124,7 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
 
             # first byte indicates reply type
             reply_type = line[:1]
-            reply_data = line[1:].decode('utf-8')
+            reply_data = line[1:].decode(self.charset, self.errors)
 
             # Error message (-)
             if reply_type == self.ERROR:
@@ -303,8 +303,6 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
     def encode(self, value):
         "Ported from redis-py"
         "Return a bytestring representation of the value"
-        self.encoding = 'utf-8' # TODO - te dwa byly konfigurowalne
-        self.encoding_errors = 'strict'
 
         if isinstance(value, Token):
             return b(value.value)
@@ -317,7 +315,7 @@ class RedisBase(protocol.Protocol, policies.TimeoutMixin, object):
         elif not isinstance(value, basestring):
             value = unicode(value)
         if isinstance(value, unicode):
-            value = value.encode(self.encoding, self.encoding_errors)
+            value = value.encode(self.charset, self.errors)
         return value
 
     def _pack(self, *args):

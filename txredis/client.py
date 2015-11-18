@@ -11,6 +11,7 @@ try:
 except ImportError:
     pass
 
+from txredis._compat import basestring
 from txredis import exceptions
 from txredis.protocol import RedisBase, HiRedisBase
 
@@ -1482,22 +1483,22 @@ class RedisSubscriber(RedisBase):
         Overrides RedisBase.handleCompleteMultiBulkData to intercept published
         message events.
         """
-        if reply[0] == b'message':
+        if reply[0] == 'message':
             channel, message = reply[1:]
             self.messageReceived(channel, message)
-        elif reply[0] == b'pmessage':
+        elif reply[0] == 'pmessage':
             pattern, channel, message = reply[1:]
             self.messageReceived(channel, message)
-        elif reply[0] == b'subscribe':
+        elif reply[0] == 'subscribe':
             channel, numSubscribed = reply[1:]
             self.channelSubscribed(channel, numSubscribed)
-        elif reply[0] == b'unsubscribe':
+        elif reply[0] == 'unsubscribe':
             channel, numSubscribed = reply[1:]
             self.channelUnsubscribed(channel, numSubscribed)
-        elif reply[0] == b'psubscribe':
+        elif reply[0] == 'psubscribe':
             channelPattern, numSubscribed = reply[1:]
             self.channelPatternSubscribed(channelPattern, numSubscribed)
-        elif reply[0] == b'punsubscribe':
+        elif reply[0] == 'punsubscribe':
             channelPattern, numSubscribed = reply[1:]
             self.channelPatternUnsubscribed(channelPattern, numSubscribed)
         else:
