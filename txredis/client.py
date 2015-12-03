@@ -11,7 +11,7 @@ try:
 except ImportError:
     pass
 
-from txredis._compat import basestring
+from txredis._compat import basestring, iterkeys, itervalues
 from txredis import exceptions
 from txredis.protocol import RedisBase, HiRedisBase
 
@@ -1241,9 +1241,9 @@ class RedisClient(RedisBase):
         args = [op, dstkey, len(keys)]
         # add in key names, and optionally weights
         if isinstance(keys, dict):
-            args.extend(list(keys.iterkeys()))
+            args.extend(list(iterkeys(keys)))
             args.append('WEIGHTS')
-            args.extend(list(keys.itervalues()))
+            args.extend(list(itervalues(keys)))
         else:
             args.extend(keys)
         if aggregate:

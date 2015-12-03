@@ -7,6 +7,8 @@ if sys.version_info[0] < 3:
     long = long
     basestring = basestring
     unicode = unicode
+    iterkeys = lambda d: d.iterkeys()
+    itervalues = lambda d: d.itervalues()
 else:
     def b(x):
         return x.encode('latin-1') if not isinstance(x, bytes) else x
@@ -14,3 +16,5 @@ else:
     long = int
     basestring = str
     unicode = str
+    iterkeys = lambda d: d.keys()
+    itervalues = lambda d: d.values()
